@@ -1,37 +1,65 @@
-> **项目：vueblog**
->
-> **公众号：MarkerHub**
+# vueblog-go
 
-### 介绍
+A Go port of the `vueblog-java` module from [MarkerHub/vueblog](https://github.com/MarkerHub/vueblog),
+preserving its HTTP contract exactly. The original Vue frontend works against it
+unchanged.
 
-一个基于SpringBoot + Vue开发的前后端分离博客项目，带有超级详细开发文档和讲解视频。还未接触过vue开发，或者前后端分离的同学，学起来哈。别忘了给vueblog一个star！感谢
+See [MIGRATION.md](MIGRATION.md) for the file-by-file mapping, the behaviours
+preserved verbatim (including several genuine quirks of the original), and the
+verification status.
 
-### 技术栈：
+## API
 
-![](https://oscimg.oschina.net/oscnet/up-4626cb696c003e36c4515e77adc7632c6ed.png)
+| Method | Path | Auth | Behaviour |
+|---|---|---|---|
+| `POST` | `/login` | — | Validates credentials, returns a JWT in the `Authorization` response header |
+| `GET` | `/logout` | required | Clears the Shiro subject (does not revoke the token) |
+| `GET` | `/blogs?currentPage=N` | — | Page of 5, newest first |
+| `GET` | `/blog/{id}` | — | One blog, or 400 `该博客已被删除` |
+| `POST` | `/blog/edit` | required | Creates or updates; only the owner may update |
+| `GET` | `/user/index` | required | Returns user id 1 (hardcoded in the original) |
+| `POST` | `/user/save` | — | Validates and echoes; persists nothing |
 
-### 项目效果：
+All responses use the `Result` envelope:
 
-![图片](https://image-1300566513.cos.ap-guangzhou.myqcloud.com/upload/images/20200613/b1c18a3fe33544578971c3a15d0d9425.png)
+```json
+{ "code": 200, "msg": "操作成功", "data": null }
+```
 
-![图片](https://image-1300566513.cos.ap-guangzhou.myqcloud.com/upload/images/20200613/5e291faeaef648af87b8b33483eef5bd.png)
+Note that `code` and the HTTP status do not always agree — see MIGRATION.md
+items 2 and 3.
 
+## Build and test
 
-### 项目文档：
+```sh
+make build     # go build ./...
+make test      # 66 tests, no MySQL or Redis needed
+make cover     # coverage over ./internal/...
+make run       # listens on :8081
+```
 
-开发文档：https://juejin.im/post/5ecfca676fb9a04793456fb8
+The suite swaps the mapper layer for in-memory implementations seeded from
+`resources/vueblog.sql`, leaving the filter, realm, controllers, exception
+handler and serialisation exactly as they run in production.
 
-vue入门视频：https://www.bilibili.com/video/BV125411W73W/
+## Configuration
 
-**vueblog讲解视频：** https://www.bilibili.com/video/BV1PQ4y1P7hZ/
+Defaults mirror the committed `application.yml`. Override with a file:
 
-关注我的B站，后续陆续还有
+```sh
+go run ./cmd/vueblog -config resources/application.yml
+```
 
-* 前后端分离类百度搜索引擎项目
-* 即时聊天等项目
+| Key | Default |
+|---|---|
+| `server.port` | `8081` |
+| `markerhub.jwt.secret` | `f4e2e52034348f86b67cde581c0f9eb5` |
+| `markerhub.jwt.expire` | `604800` (7 days) |
+| `spring.datasource.url` | `root:admin@tcp(localhost:3306)/vueblog?...` |
 
-等项目分享出来哈！
+The datasource URL uses Go driver DSN syntax rather than a JDBC URL. Load the
+schema from `resources/vueblog.sql`.
 
-**更多项目请关注公众号：MarkerHub**
+## Licence
 
-![MarkerHub](https://camo.githubusercontent.com/061df651b4fcfec5d258dc2beb78f441b9360e42/68747470733a2f2f696d6167652d313330303536363531332e636f732e61702d6775616e677a686f752e6d7971636c6f75642e636f6d2f6d696e652f4d61726b65724875622e6a7067)
+Apache-2.0, inherited from the upstream project.
